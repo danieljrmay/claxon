@@ -410,6 +410,61 @@ pub struct Block {
     buffer: Vec<i32>,
 }
 
+pub struct InterleavedSamplesIter<'a> {
+    block: &'a Block,
+    block_size: usize,
+    channel_index: usize,
+    sample_index: usize,
+    bits_per_sample: u32,
+}
+impl<'a> InterleavedSamplesIter<'a> {
+    pub fn new(block: &Block, bits_per_sample: u32) -> InterleavedSamplesIter {
+        let block_size: usize = block.block_size as usize;
+
+        //println!("InterleavedSamplesIter::new() block.first_sample_number={}, block_size={}, buffer.len()={}", block.first_sample_number, block_size, block.buffer.len());
+        
+        InterleavedSamplesIter {
+            block,
+            block_size,
+            channel_index: 0,
+            sample_index: 0,
+            bits_per_sample,
+        }
+    }
+
+    pub fn block_size(&self) -> i64 {
+        self.block_size as i64
+    }
+}
+impl<'a> Iterator for InterleavedSamplesIter<'a> {
+    type Item = i32;
+
+    fn next(&mut self) -> Option<i32> {
+        // pub fn sample(&self, ch: u32, sample: u32) -> i32 {
+        // let bsz = self.block_size as usize;
+        // return self.buffer[ch as usize * bsz + sample as usize];
+        // }
+
+        if self.sample_index == self.block_size {
+            return None;
+        }
+        
+        let sample = self.block.buffer[self.channel_index * self.block_size + self.sample_index] << (32 - self.bits_per_sample);
+
+        //println!("ISIter: ch_i={} samp_i= {} samp={}", self.channel_index, self.sample_index, sample);
+        
+        self.channel_index += 1;
+
+        if self.channel_index == self.block.channels as usize {
+            self.channel_index = 0;
+
+            self.sample_index += 1;
+        }
+
+        Some(sample)
+    }
+}
+
 impl Block {
     fn new(time: u64, bs: u32, buffer: Vec<i32>) -> Block {
         Block {
